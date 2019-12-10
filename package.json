@@ -1,0 +1,24 @@
+{
+  "name": "knowledgegraphverification",
+  "version": "1.0.0",
+  "description": "A verification framework for Knowledge Graphs",
+  "main": "verificationFramework.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/semantifyit/KnowledgeGraphVerification.git"
+  },
+  "keywords": [
+    "knowledge",
+    "graph",
+    "verification"
+  ],
+  "author": "Omar J. A. Holzknecht for STI Innsbruck",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/semantifyit/KnowledgeGraphVerification/issues"
+  },
+  "homepage": "https://github.com/semantifyit/KnowledgeGraphVerification#readme"
+}

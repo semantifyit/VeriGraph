@@ -1,0 +1,219 @@
+@prefix schema: <http://schema.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix ex: <http://example.com/ns#> .
+
+ex:
+	sh:declare [
+		sh:prefix "ex" ;
+		sh:namespace <http://example.com/ns#> ;
+	] .
+
+ex:ThingNameShape a sh:NodeShape;
+    sh:targetClass schema:CreativeWork, schema:Event, schema:Organization, schema:Person, schema:Place, schema:Product;
+    sh:property [
+        sh:path schema:name;
+        sh:datatype xsd:string;
+        sh:minCount 1;
+
+    ].
+
+ex:ThingDescrUrlShape a sh:NodeShape;
+    sh:targetClass schema:CreativeWork, schema:Event,  schema:Product;
+    
+    sh:property [
+        sh:path schema:description;
+        sh:minCount 1;
+    ];
+    sh:property [
+        sh:path schema:url;
+        sh:minCount 1;
+        sh:maxCount 1;
+    ].
+   
+ex:PlaceGeoShape a sh:NodeShape;
+    sh:targetClass schema:Place;
+    sh:property [
+        sh:path schema:geo;
+        sh:node [
+            sh:property [
+                sh:path schema:latitude;
+                sh:or (
+                [
+                	sh:datatype xsd:string;
+                ]
+                [
+                	sh:datatype xsd:double;
+                ]
+                );                              
+                sh:minCount 1;
+                sh:maxCount 1;
+            ];
+            sh:property [
+                sh:path schema:longitude;
+                sh:or (
+                [
+                	sh:datatype xsd:string;
+                ]
+                [
+                	sh:datatype xsd:double;
+                ]
+                );  
+                sh:minCount 1;
+                sh:maxCount 1;            
+            ]
+        ];
+        sh:class schema:GeoCoordinates;
+        sh:minCount 1;
+        sh:maxCount 1;
+    ];
+    sh:property [
+        sh:path schema:address;
+        sh:class schema:PostalAddress;
+        sh:minCount 1;
+        sh:node [
+            sh:property [
+                sh:path schema:streetAddress;
+                sh:datatype xsd:string;
+                sh:minCount 1;
+                sh:maxCount 1;
+            ];
+            sh:property [
+                sh:path schema:addressLocality;
+                sh:datatype xsd:string;
+                sh:minCount 1;
+                sh:maxCount 1;
+            ];            
+            sh:property [
+                sh:path schema:addressRegion;
+                sh:datatype xsd:string;
+                sh:minCount 1;
+                sh:maxCount 1;
+            ];
+            sh:property [
+                sh:path schema:addressCountry;
+                sh:datatype xsd:string;
+                sh:minCount 1;
+                sh:maxCount 1;
+            ];
+        ];
+
+    ];
+    sh:property [
+        sh:path (schema:openingHoursSpecification schema:opens);
+        sh:lessThan (schema:openingHoursSpecification schema:closes);
+
+    ];
+    
+    sh:property [
+        sh:path (schema:openingHoursSpecification schema:dayOfWeek);
+        sh:in (schema:Monday schema:Tuesday schema:Wednesday schema:Thursday schema:Friday schema:Saturday schema:Sunday);
+    ] .
+
+ex:PriceShape a ex:NodeShape;
+    sh:targetClass schema:PriceSpecification;
+    sh:property [
+        sh:path schema:minPrice;
+        sh:minInclusive 0;
+    ];
+    sh:property [
+        sh:path schema:maxPrice;
+        sh:minInclusive 0;
+    ];
+    sh:property [
+        sh:path schema:price;
+        sh:minInclusive 0;
+    ] .
+
+ex:EventShape a sh:NodeShape;
+    sh:targetClass schema:Event;
+    sh:property [
+        sh:path schema:location;
+        sh:class schema:Place;
+    ];
+    sh:property [
+        sh:path schema:startDate;
+        sh:datatype xsd:datetime;
+    ];
+    sh:property [
+        sh:path schema:endDate;
+        sh:datatype xsd:datetime;
+    ];
+    sh:property [
+        sh:path schema:startDate;
+        sh:lessThan schema:endDate;
+    ];
+   
+    sh:property [
+        sh:path schema:eventStatus;
+        sh:class schema:EventStatusType;
+        sh:in (schema:EventCancelled schema:EventPostponed schema:EventRescheduled schema:EventScheduled);
+    ].
+    
+ex:ContactPointShape a sh:NodeShape;
+    sh:targetClass schema:ContactPoint;
+    sh:property [
+        sh:path schema:contactType;
+        sh:datatype xsd:string;
+        sh:minCount 1;  
+		sh:in ("customer support" "technical support" "billing support" "bill payment" "sales" "reservations""credit card support" "emergency" "baggage tracking" "roadside assistance" "package tracking");        
+    ];
+    sh:property [
+        sh:path schema:telephone;
+        sh:minCount 1;
+    ]; 
+	sh:property [
+        sh:path schema:email;
+        sh:minCount 1;
+    ].
+    
+ex:OfferShape a sh:NodeShape;
+    sh:targetClass schema:Offer;
+    sh:property [
+        sh:path schema:availability;  
+        sh:class schema:ItemAvailability;
+    	sh:in (schema:Discontinued schema:InStock schema:InStoreOnly schema:LimitedAvailability schema:OnlineOnly schema:OutOfStock schema:PreOrder schema:PreSale schema:SoldOut);
+    ];
+    sh:property [
+        sh:path schema:price;
+        sh:minInclusive 0;
+    ] ;
+    sh:property [
+        sh:path schema:priceCurrency;
+        sh:minCount 1;
+    ].	
+
+ex:validFromShape a sh:NodeShape; 
+	sh:targetSubjectOf schema:validFrom;
+ 	sh:property [
+        sh:path schema:validFrom;
+        sh:lessThan schema:validThrough ;
+	].
+	
+ex:availabilityStarts a sh:NodeShape; 	
+    sh:targetSubjectOf schema:availabilityStarts;
+	sh:property [
+	    sh:path schema:availabilityStarts;
+        sh:lessThan schema:availabilityEnds;
+    ].
+
+
+ex:SingleHotelRoomShape a sh:NodeShape;
+    sh:target [
+        a sh:SPARQLTarget;
+        sh:prefixes ex: ;
+        sh:select """
+            SELECT ?this
+            WHERE {
+                ?this a schema:HotelRoom.
+                ?this schema:bed/schema:numberOfBeds 1.
+                ?this schema:typeOfBed ex:SingleBed.
+            }
+            """;
+    ];
+    sh:property [
+        sh:path schema:occupancy;
+        sh:hasValue 1;
+    ] .
