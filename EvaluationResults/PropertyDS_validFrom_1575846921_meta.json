@@ -1,0 +1,29 @@
+{
+  "Connection settings": {
+    "SPARQL endpoint": "http://graphdb.sti2.at:8080",
+    "Repository ID": "onebillion",
+    "Named graph": null,
+    "Connection timeout (Minutes)": 0
+  },
+  "Verification settings": {
+    "Used Domain Specification": "PropertyDS_validFrom",
+    "Allow sub-classes for entity-match": false,
+    "Allow only root-entities for entity-match": false,
+    "Allow use of internal KG-identifier": false,
+    "Maximal amount of entities to verify": 0,
+    "Entity-chunk-size for data-graph-retrieval": 5000,
+    "Maximal amount of errors per error-file": 50000
+  },
+  "Statistics": {
+    "Number of verified entities": 279774,
+    "Number of triples processed": 1412262,
+    "Number of errors found": 14266,
+    "Distribution of errors found": {
+      "533_Non-conform sh:lessThan": 14266
+    },
+    "Duration for retrieval of target-entity-list without blank nodes (Seconds)": 0.661,
+    "Duration for retrieval of data-graphs of target-entities without blank nodes (Seconds)": 0,
+    "Duration for retrieval of target-entity-list and data-graphs for blank nodes (Seconds)": 581.505,
+    "Duration for verification of data-graphs (Seconds)": 229.149
+  }
+}
