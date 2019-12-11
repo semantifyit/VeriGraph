@@ -20,5 +20,15 @@
   "bugs": {
     "url": "https://github.com/semantifyit/KnowledgeGraphVerification/issues"
   },
-  "homepage": "https://github.com/semantifyit/KnowledgeGraphVerification#readme"
+  "homepage": "https://github.com/semantifyit/KnowledgeGraphVerification#readme",
+  "dependencies": {
+    "csv-parse": "^4.8.2",
+    "event-stream": "^4.0.1",
+    "fs": "0.0.1-security",
+    "jsonld": "^2.0.1",
+    "moment": "^2.24.0",
+    "request": "^2.88.0",
+    "request-progress": "^3.0.0",
+    "superagent": "^5.1.2"
+  }
 }
