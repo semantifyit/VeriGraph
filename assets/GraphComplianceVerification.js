@@ -3,7 +3,7 @@ const jsonld = require("jsonld");
 const ComplianceValidationReport = require("./constructors/KGComplianceVerificationReport");
 const ErrorEntry = require("./constructors/KGErrorEntry");
 const vocHand = require("./vocabularyHandler");
-const sdoAdapter = require("./sdoAdapter");
+const sdoAdapter = require("schema-org-adapter");
 const moment = require("moment");
 
 let mySdoAdapter;

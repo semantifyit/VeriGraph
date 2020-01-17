@@ -1,5 +1,5 @@
 const vocHand = require("./vocabularyHandler");
-const sdoAdapter = require("./sdoAdapter");
+const sdoAdapter = require("schema-org-adapter");
 
 let mySdoAdapter;
 

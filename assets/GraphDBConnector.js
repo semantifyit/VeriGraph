@@ -2,7 +2,6 @@ const request = require('request');
 const progress = require('request-progress');
 const fs = require('fs');
 const sparqlFactory = require("./sparqlFactory");
-const vocabularyHandler = require("./vocabularyHandler");
 
 /**
  * A graph DB connector is supposed to be created once for several verification tasks on the same graphDB target

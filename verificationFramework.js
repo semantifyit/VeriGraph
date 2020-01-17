@@ -17,7 +17,7 @@ async function main() {
         errorsPerErrorFile : 50000, //amount of errors that should be saved in a single local file (50k errors are around 20 mb)
         exactMatch: true, //false -> subclasses of the target classes are also considered (false makes verification more expensive, eventually more target entities)
         onlyRootEntities: false, // true -> only entities that are not objects (?o) in any triple (?s ?p ?o) are considered (true makes verification more expensive, eventually less target entities)
-        retailMode: false // true -> makes use of internal IDs of GraphDB (false makes verification more expensive)
+        retailMode: true // true -> makes use of internal IDs of GraphDB (false makes verification more expensive)
     };
     const domainSpecification = require("./DomainSpecifications/DS_Person");
     let processFinished = await KGComplianceVerification.verifyKnowledgeGraph(connectionSettings, verificationSettings, domainSpecification);
