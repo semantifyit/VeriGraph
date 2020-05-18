@@ -1,7 +1,42 @@
 /*
 This File contains functions to handle/load/create SDOAdapter for given SDO/External vocabulary combinations
 */
-let adapterMemory = [];
+const sdoAdapter = require("schema-org-adapter");
+const adapterMemory = [];
+let mySdoAdapter;
+
+/**
+ * sets up the sdo adapter depending on the vocabularies used by the input domain specification
+ * @param {object} domainSpecification - the input domain specification
+ * @return {boolean} returns true when the setting up is done
+ */
+async function setSdoAdapter(domainSpecification) {
+    let vocabArray = getVocabURLForDS(domainSpecification);
+    let correspondingSdoAdapter = getSDOAdapter(vocabArray);
+    if (correspondingSdoAdapter === null) {
+        let newSDOAdapter = new sdoAdapter();
+        createAdapterMemoryItem(vocabArray, newSDOAdapter);
+        mySdoAdapter = newSDOAdapter;
+        await newSDOAdapter.addVocabularies(vocabArray);
+        registerVocabReady(vocabArray);
+        return true;
+    } else {
+        if (correspondingSdoAdapter.initialized === false) {
+            setTimeout(async function () {
+                await setSdoAdapter(domainSpecification);
+                return true;
+            }, 500);
+        } else {
+            //use the already created adapter for this vocabulary-combination
+            mySdoAdapter = correspondingSdoAdapter.sdoAdapter;
+            return true;
+        }
+    }
+}
+
+function getMySdoAdapter() {
+    return mySdoAdapter;
+}
 
 //creates a new item in the adapterMemory. The "initialized" field is set to true in another function, when the sdoAdapter had its vocabularies added.
 function createAdapterMemoryItem(vocabsArray, sdoAdapterInstance) {
@@ -48,34 +83,20 @@ function getSDOAdapter(vocabsArray) {
     return null;
 }
 
-//helper function to determine used vocabularies and versions of the given DS
-function analyzeDSVocabularies(ds) {
-    let vocabularies = [];
-    if (ds && ds["@graph"] && ds["@graph"][0] && ds["@graph"][0]["schema:schemaVersion"]) {
-        vocabularies.push(ds["@graph"][0]["schema:schemaVersion"]);
+/**
+ * Extracts the URLs needed for the SDO-Adapter to handle the data of the given DS
+ * @param {Object} ds - The input DS
+ * @return {[String]} - The Array of URLs where the vocabularies can be fetched (for the SDO Adapter)
+ */
+function getVocabURLForDS(ds) {
+    let vocabs = [];
+    if (ds && ds["@graph"][0] && Array.isArray(ds["@graph"][0]["ds:usedVocabularies"])) {
+        vocabs = JSON.parse(JSON.stringify(ds["@graph"][0]["ds:usedVocabularies"]));
     }
-    if (ds && ds["@context"]) {
-        let contextKeys = Object.keys(ds["@context"]);
-        let standardContextIdentifiers = ["rdf", "rdfs", "sh", "xsd", "schema", "sh:targetClass", "sh:property", "sh:path", "sh:nodeKind", "sh:datatype", "sh:node", "sh:class", "sh:or", "sh:in", "sh:languageIn", "sh:equals", "sh:disjoint", "sh:lessThan", "sh:lessThanOrEquals", "sh:targetSubjectOf"];
-        for (let i = 0; i < contextKeys.length; i++) {
-            if (standardContextIdentifiers.indexOf(contextKeys[i]) === -1) {
-                vocabularies.push(ds["@context"][contextKeys[i]]);
-            }
-        }
+    if (ds && ds["@graph"][0] && ds["@graph"][0]["schema:schemaVersion"]) {
+        vocabs.push("https://raw.githubusercontent.com/schemaorg/schemaorg/master/data/releases/" + getSDOVersion(ds["@graph"][0]["schema:schemaVersion"]) + "/all-layers.jsonld");
     }
-    return vocabularies;
-}
-
-//constructs the URL for given vocabulary IRIs
-function getVocabURLForIRIs(vocabulariesArray) {
-    let result = [];
-    for (let i = 0; i < vocabulariesArray.length; i++) {
-        if (vocabulariesArray[i].indexOf("schema.org") !== -1) {
-            result.push("https://raw.githubusercontent.com/schemaorg/schemaorg/master/data/releases/" + getSDOVersion(vocabulariesArray[i]) + "/all-layers.jsonld");
-        }
-        //for this public project only the public schema.org vocabulary is available
-    }
-    return result;
+    return vocabs;
 }
 
 //helper function to retrieve the SDO version used in a DS
@@ -86,9 +107,6 @@ function getSDOVersion(domainSpecification) {
 }
 
 module.exports = {
-    createAdapterMemoryItem,
-    registerVocabReady,
-    getSDOAdapter,
-    analyzeDSVocabularies,
-    getVocabURLForIRIs
+    setSdoAdapter,
+    getMySdoAdapter
 };

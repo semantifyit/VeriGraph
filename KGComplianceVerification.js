@@ -1,20 +1,26 @@
 const utilities = require("./assets/utilities");
+const GraphComplianceVerification = require("./assets/GraphComplianceVerification");
 const GraphDBConnector = require("./assets/GraphDBConnector");
 const moment = require("moment");
 const VerificationProcessor = require("./assets/VerificationProcessor");
+const vocHand = require("./assets/vocabularyHandler");
 const fs = require('fs');
+const fileName_targetList = "entityList.txt";
+const fileName_targetListWithData = "entityListAndData_BlankNodes.txt";
 
 async function verifyKnowledgeGraph(connectionSettings, verificationSettings, domainSpecification) {
     return new Promise(async function (resolve) {
         const startTime = moment();
         const statistics = initializeStatistics(domainSpecification, startTime);
+        verificationSettings.fileName_targetList = fileName_targetList;
+        verificationSettings.fileName_targetListWithData = fileName_targetListWithData;
         console.log("Stating time: " + moment().format("dddd, MMMM Do YYYY, h:mm:ss a"));
         const graphDBConnector = new GraphDBConnector(connectionSettings.endPointURL, connectionSettings.repositoryId, connectionSettings.namedGraph, connectionSettings.timeout);
         if (connectionSettings.user && connectionSettings.pw) {
             let loginSuccess = await graphDBConnector.login(connectionSettings.user, connectionSettings.pw);
         }
-        let dsTargetObject = utilities.getTargetForDomainSpecification(domainSpecification);
-
+        await vocHand.setSdoAdapter(domainSpecification); //set the needed sdoAdapter for the given DS
+        let dsTargetObject = utilities.getTargetOfDomainSpecification(domainSpecification);
         //step 1/1b: get list of targets (URIs without blank nodes or GraphDBIds with blank nodes)
         let timeTargetList_pre = moment();
         let getTargetListSuccess = await graphDBConnector.getTargetList(dsTargetObject, verificationSettings);
@@ -22,12 +28,10 @@ async function verifyKnowledgeGraph(connectionSettings, verificationSettings, do
             statistics.executionErrors.getTargetList++;
         }
         statistics.durationTargetList.add(moment.duration(moment().diff(timeTargetList_pre)));
-
         //step 2: for each target in the list: fetch data graph and verify
         if (getTargetListSuccess) {
             let processTargetListSuccess = await VerificationProcessor.processTargetList(graphDBConnector, verificationSettings, domainSpecification, statistics);
         }
-
         //step 2b: fetch list of targets (blank nodes) with their data
         if (verificationSettings.retailMode === false) {
             let timeGetBlankTargetsAndData_pre = moment();
@@ -35,7 +39,6 @@ async function verifyKnowledgeGraph(connectionSettings, verificationSettings, do
             statistics.durationRetrieveBlankNodes.add(moment.duration(moment().diff(timeGetBlankTargetsAndData_pre)));
             let processBlankTargetAndDataSuccess = await VerificationProcessor.processBlankTargets(verificationSettings, domainSpecification, statistics);
         }
-
         //step 3: create meta data and finalize verification
         const metaData = utilities.createMetaInformation(connectionSettings, verificationSettings, domainSpecification, statistics);
         console.log(JSON.stringify(metaData, null, 2));
@@ -79,6 +82,17 @@ async function writeVerificationMeta(metaData, statistics) {
     });
 }
 
+/**
+ * Verifies the compliance of a given entity graph against a given domain specification
+ * @param {Object} entityGraph - the graph to verify
+ * @param {Object} domainSpecifications - the specification to check
+ * @returns {Object} The resulting verification report
+ */
+async function verifyEntityGraphAgainstDomainSpecification(entityGraph, domainSpecifications) {
+    return await GraphComplianceVerification.isGraphValidAgainstDomainSpecification(entityGraph, domainSpecifications);
+}
+
 module.exports = {
+    verifyEntityGraphAgainstDomainSpecification,
     verifyKnowledgeGraph
 };

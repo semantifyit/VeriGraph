@@ -1,6 +1,7 @@
 //these predicates are being ignored for the creation of the data graph
 let blacklistedPredicates = ["http://purl.org/dc/elements/1.1/language"];
 
+//transforms quads read from the local file into a wished format (similar to sparql-result-json
 function transformBlankNodeQuads(quads) {
     let result = [];
     for (let i = 0; i < quads.length; i++) {
@@ -43,12 +44,12 @@ function transformBlankNodeQuads(quads) {
 
 /**
  * transforms the query output of getEntityGraphForURI() into a graph with a wished format
- * @param {Array} inputData - The "result.bindings" array resulting from the getEntityGraphForURI() Query on graphDB
+ * @param {Array} inputData - The "results.bindings" array resulting from the getEntityGraphForURI() Query on graphDB
  *  * @return {Object} the resulting graph
  */
-function postProcessQuery_getBlankEntityGraph(inputData) {
+function processDataGraphBulk(inputData) {
+    //console.log(JSON.stringify(inputData,null,2))
     let mommyGraph = {};
-
     //let graph = {};
     for (let i = 0; i < inputData.length; i++) {
         let originId = inputData[i].origin.value;
@@ -58,11 +59,14 @@ function postProcessQuery_getBlankEntityGraph(inputData) {
 
         let actualId = inputData[i].subj.value;
         if (!mommyGraph[originId][actualId]) {
-            mommyGraph[originId][actualId] = {
-                "@nodeType": inputData[i].subj.type
-            };
+            mommyGraph[originId][actualId] = {};
         }
         if (inputData[i].pred && inputData[i].pred.value) {
+            //change type of references (when using graphDB IDs, we could introduce the same system to !retailMode, but not feasible)
+            if (inputData[i].obj.value.startsWith("GID:")) {
+                inputData[i].obj.type = "reference"; //mark this object as a reference
+                inputData[i].obj.value = inputData[i].obj.value.substr("GID:".length); //now that we already flagged this as a reference, we can use the actual reference value without flag as value
+            }
             //describe @type always as arrays
             if (inputData[i].pred.value === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type") {
                 if (Array.isArray(mommyGraph[originId][actualId]["@type"])) {
@@ -79,10 +83,16 @@ function postProcessQuery_getBlankEntityGraph(inputData) {
             }
         }
     }
+    //save root node id
+    let mommyGraphKeys = Object.keys(mommyGraph);
+    for (let i = 0; i < mommyGraphKeys.length; i++) {
+        mommyGraph[mommyGraphKeys[i]]["@RootEntity"] = mommyGraphKeys[i];
+    }
     return Object.values(mommyGraph);
 }
 
-function getTargetForDomainSpecification(domainSpecification) {
+//returns an object holding the target definition of a given domain specification.
+function getTargetOfDomainSpecification(domainSpecification) {
     let result = {
         targetType: null, //can be "Class" or "Property"
         target: null //can be an Array of Class-URIs or a single Property-URI
@@ -107,11 +117,12 @@ function getTargetForDomainSpecification(domainSpecification) {
     return result;
 }
 
+//gives the absolute form of a given compacted uri
 function getAbsoluteURI(compactedURI, context) {
     return context[compactedURI.substring(0, compactedURI.indexOf(":"))].concat(compactedURI.substring(compactedURI.indexOf(":") + 1));
 }
 
-
+//creates an object holding meta information about a verification job
 function createMetaInformation(connectionSettings, verificationSettings, domainSpecification, statistics) {
     let result = {
         "Connection settings": {
@@ -127,7 +138,7 @@ function createMetaInformation(connectionSettings, verificationSettings, domainS
             "Allow use of internal KG-identifier": verificationSettings.retailMode,
             "Maximal amount of entities to verify": verificationSettings.verificationLimit,
             "Entity-chunk-size for data-graph-retrieval": verificationSettings.entityGraphChuckSize,
-            "Maximal amount of errors per error-file": verificationSettings.errorsPerErrorFile
+            "Logging of errors in error-files enabled": verificationSettings.logErrors
         },
         "Statistics": {
             "Number of verified entities": statistics.sumEntitiesVerified,
@@ -136,6 +147,9 @@ function createMetaInformation(connectionSettings, verificationSettings, domainS
             "Distribution of errors found": statistics.errorMeta
         }
     };
+    if (verificationSettings.logErrors) {
+        result["Verification settings"]["Maximal amount of errors per error-file"] = verificationSettings.errorsPerErrorFile
+    }
     if (verificationSettings.retailMode) {
         result.Statistics["Duration for retrieval of target-entity-list (Seconds)"] = statistics.durationTargetList.as('seconds');
         result.Statistics["Duration for retrieval of data-graphs (Seconds)"] = statistics.durationEntityGraphs.as('seconds');
@@ -145,10 +159,16 @@ function createMetaInformation(connectionSettings, verificationSettings, domainS
         result.Statistics["Duration for retrieval of target-entity-list and data-graphs for blank nodes (Seconds)"] = statistics.durationRetrieveBlankNodes.as('seconds');
     }
     result.Statistics["Duration for verification of data-graphs (Seconds)"] = statistics.durationVerification.as('seconds');
+    if (verificationSettings.retailMode) {
+        result.Statistics["Total duration (Seconds)"] = statistics.durationEntityGraphs.add(statistics.durationTargetList).add(statistics.durationVerification).as('seconds');
+    } else {
+        result.Statistics["Total duration (Seconds)"] = statistics.durationEntityGraphs.add(statistics.durationTargetList).add(statistics.durationRetrieveBlankNodes).add(statistics.durationVerification).as('seconds');
+    }
     result.Statistics["Execution errors for the verification framework"] = statistics.executionErrors;
     return result;
 }
 
+//calculates the amount of total errors from a given error-meta object
 function calculateSumErrors(errorMeta) {
     let keys = Object.keys(errorMeta);
     let sum = 0;
@@ -159,8 +179,8 @@ function calculateSumErrors(errorMeta) {
 }
 
 module.exports = {
-    postProcessQuery_getBlankEntityGraph,
-    getTargetForDomainSpecification,
+    processDataGraphBulk,
+    getTargetOfDomainSpecification,
     createMetaInformation,
     calculateSumErrors,
     transformBlankNodeQuads

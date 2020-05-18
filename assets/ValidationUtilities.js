@@ -22,6 +22,68 @@ function isNumber(object) {
     return typeof object === 'number';
 }
 
+function isBoolean(object) {
+    if (object === undefined || object === null) {
+        return false;
+    }
+    return typeof object === 'boolean';
+}
+
+function isUndefined(object) {
+    return object === undefined;
+}
+
+function isNull(object) {
+    return object === null;
+}
+
+//Levenshteins distance algorithm, returns the distance (difference value) between two strings
+function levDist(s, t) {
+    let d = []; //2d matrix
+    // Step 1
+    let n = s.length;
+    let m = t.length;
+    if (n == 0) return m;
+    if (m == 0) return n;
+    //Create an array of arrays in javascript (a descending loop is quicker)
+    for (let i = n; i >= 0; i--) d[i] = [];
+    // Step 2
+    for (let i = n; i >= 0; i--) d[i][0] = i;
+    for (let j = m; j >= 0; j--) d[0][j] = j;
+    // Step 3
+    for (let i = 1; i <= n; i++) {
+        let s_i = s.charAt(i - 1);
+        // Step 4
+        for (let j = 1; j <= m; j++) {
+            //Check the jagged ld total so far
+            if (i == j && d[i][j] > 4) return n;
+            let t_j = t.charAt(j - 1);
+            let cost = (s_i == t_j) ? 0 : 1; // Step 5
+            //Calculate the minimum
+            let mi = d[i - 1][j] + 1;
+            let b = d[i][j - 1] + 1;
+            let c = d[i - 1][j - 1] + cost;
+            if (b < mi) mi = b;
+            if (c < mi) mi = c;
+            d[i][j] = mi; // Step 6
+            //Damerau transposition
+            if (i > 1 && j > 1 && s_i == t.charAt(j - 2) && s.charAt(i - 2) == t_j) {
+                d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + cost);
+            }
+        }
+    }
+    // Step 7
+    return d[n][m];
+}
+
+function mergeArrays(arrA, arrB) {
+    for (let i = 0; i < arrB.length; i++) {
+        arrA.push(arrB[i]);
+    }
+    return arrA;
+}
+
+
 function isUrl(s) {
     if (s.substring(0, 4) === "www.") {
         s = "http://".concat(s); //allow url without protocol
@@ -64,7 +126,7 @@ function resolvePath_dataGraph(dataGraph, path) {
             //is array
             let foundRange = false;
             for (let k = 0; k < actualEntity.length; k++) {
-                if (actualEntity[k].type === "uri" || actualEntity[k].type === "bnode") {
+                if (actualEntity[k].type === "uri" || actualEntity[k].type === "bnode" || actualEntity[k].type === "reference") {
                     if (actualEntity[k].value === actualPathEntry) {
                         //uri or bnode should be in the dataGraph
                         foundRange = true;
@@ -176,6 +238,48 @@ function resolvePathDS_graphRange(graphDS, resultRef, rangeURI) {
     throw new Error("Path is invalid for the given Domain Specification."); //if no match was found
 }
 
+//returns the part of a ds object depending on the given path
+//we assume that the dsPath is always given completely from the root (starts with "$")
+//this function may give non-reference values back! Do not use to SET new data
+function resolvePath_graphAnnotation(graphAnn, annotationPath) {
+    //annotationPath has following format:
+    //$ stands for the root
+    //schema:address stands for a property from the standard SDO vocab
+    //1 stands for the value index for a property(array)
+    // . is a delimiter between a class and its property, e.g.  "$.schema:address"
+    // / is a delimiter between a property and its range, e.g.  "$.schema:address/1"
+    // ranges of properties are given as their array-index, starting from 0. If there is no array, then that value is referenced by 0.
+    //$.schema:address/0.schema:addressRegion/2
+    let foundDelimiter = true;
+    let result = {};
+    try {
+        do {
+            //check property delimiter
+            let bigTokens = annotationPath.split("/");
+            if (annotationPath.startsWith("$")) { //start with root
+                //assume that the first element of the graphAnn is the root node
+                //set that as the initial resultReference
+                result = graphAnn[Object.keys(graphAnn)[0]];
+                annotationPath = annotationPath.substring(1); //trim annotationPath from processed part
+            } else if (annotationPath.startsWith(".")) { //start with property
+                let smallTokens = bigTokens[0].split(".");
+                result = resolvePathAnnotation_graphProperty(result, smallTokens[1]); //smallTokens[1] is the next property URI, e.g. "schema:address"
+                annotationPath = annotationPath.substring(smallTokens[1].length + 1);  //trim annotationPath from processed part
+            } else if (annotationPath.startsWith("/")) { //start with range
+                result = resolvePathAnnotation_graphRange(graphAnn, result, bigTokens[1].split(".")[0]); //bigTokens[1].split(".")[0] is the range index, e.g. 0
+                annotationPath = annotationPath.substring(bigTokens[1].split(".")[0].length + 1);  //trim annotationPath from processed part
+            } else {
+                foundDelimiter = false;
+            }
+        } while (foundDelimiter);
+        return result;
+    } catch (e) {
+        console.log(e);
+        console.log("annotationPath: " + annotationPath);
+        return null;
+    }
+}
+
 //returns the part of a given object that corresponds to the property definition given
 // = looks for a given property inside the defined properties of a given class object
 function resolvePathAnnotation_graphProperty(resultRef, propertyURI) {
@@ -210,6 +314,12 @@ function resolvePathAnnotation_graphRange(graphAnn, resultRef, rangeIndex) {
         //is literal
         return range;
     }
+}
+
+//returns the depth inside a DS based on the path given
+function getDepthDS(path) {
+    //the amount of / inside the path (used for the range of a property) tells how deep the depth is
+    return path.split("/").length - 1;
 }
 
 //checks if the URI(s) in types1 (array or single value) match the URI(s) in types2 (array or single value)
@@ -259,13 +369,28 @@ function prettyPrintURI(uri) {
     return uri;
 }
 
+function reversePrettyPrintURI(string) {
+    if (string.indexOf(":") === -1) {
+        return "schema:" + string;
+    }
+    return string;
+}
+
 module.exports = {
     isObject,
     isString,
     isNumber,
+    isBoolean,
+    isUndefined,
+    isNull,
+    levDist,
+    mergeArrays,
     isUrl,
     resolvePath_graphDS,
+    resolvePath_graphAnnotation,
+    getDepthDS,
     stringifyTypeForPath,
     prettyPrintURI,
+    reversePrettyPrintURI,
     resolvePath_dataGraph
 };

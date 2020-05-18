@@ -1,38 +1,6 @@
 const vocHand = require("./vocabularyHandler");
-const sdoAdapter = require("schema-org-adapter");
 
-let mySdoAdapter;
-
-/**
- * sets mySdoAdapter with vocabularies needed for the given vocabulary array
- * @param {array} vocabularyArray - the vocabularies needed (array of strings), sdo must be given with a version number
- * @returns {Boolean} - returns true when done
- */
-async function setSdoAdapter(vocabularyArray) {
-    let vocabArray = vocHand.getVocabURLForIRIs(vocabularyArray);
-    let correspondingSdoAdapter = vocHand.getSDOAdapter(vocabArray);
-    if (correspondingSdoAdapter === null) {
-        let newSDOAdapter = new sdoAdapter();
-        vocHand.createAdapterMemoryItem(vocabArray, newSDOAdapter);
-        mySdoAdapter = newSDOAdapter;
-        await newSDOAdapter.addVocabularies(vocabArray, null);
-        vocHand.registerVocabReady(vocabArray);
-        return true;
-    } else {
-        if (correspondingSdoAdapter.initialized === false) {
-            setTimeout(async function () {
-                await setSdoAdapter(vocabularyArray);
-                return true;
-            }, 500);
-        } else {
-            //use the already created adapter for this vocabulary-combination
-            mySdoAdapter = correspondingSdoAdapter.sdoAdapter;
-            return true;
-        }
-    }
-}
-
-//covers RetailMode and !RetailMode
+//retrieves data-graphs (all entities and literals connected to a specific entity) for an array of entities by their URIs (non-retail-mode) or by their GraphDB-IDs (retail-mode)
 function genQuery_EntityGraphBulk(entityArray, namedGraph, verificationSettings) {
     let query = "PREFIX schema: <http://schema.org/> ";
     query = query.concat("select ?subj ?pred ?obj ?origin ");
@@ -52,6 +20,35 @@ function genQuery_EntityGraphBulk(entityArray, namedGraph, verificationSettings)
     return trimWhiteSpaces(query);
 }
 
+//retrieves data-graphs (all entities and literals connected to a specific entity) for an array of entities by their URIs GraphDB-IDs -> only retail-mode is supported by this query, since there wont be blank nodes or uris used, but their internal IDs
+function genQuery_EntityGraphBulk_withIds(entityArray, namedGraph, verificationSettings) {
+    let query = "PREFIX schema: <http://schema.org/> ";
+    query = query.concat("select ?subj ?pred ?obj ?origin ");
+    if (namedGraph !== null) {
+        query = query.concat("from <" + namedGraph + "> ");
+    }
+    let valueString = genEntityValues(entityArray, verificationSettings.retailMode);
+
+    query = query.concat("where { VALUES ?ids { " + valueString + " } ");
+    query = query.concat("?ori <http://www.ontotext.com/owlim/entity#id> ?ids . ");
+    query = query.concat("?ori <http://www.ontotext.com/owlim/entity#id> ?origin . ");
+    query = query.concat("?ori (schema:|!schema:)* ?s . " +
+        "?s ?pred ?o . ");
+    query = query.concat("?s <http://www.ontotext.com/owlim/entity#id> ?subj . ");
+    //render entities by their IDs, but filter those URIs which are supposed to be rendered as values
+    query = query.concat("OPTIONAL { FILTER (!isLiteral(?o) && NOT EXISTS{?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o}) " +
+        "?o <http://www.ontotext.com/owlim/entity#id> ?objId . " +
+        "BIND(CONCAT('GID:',STR(?objId)) AS ?obj)} ");
+    query = query.concat("OPTIONAL { FILTER (!isLiteral(?o) && EXISTS{?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?o}) " +
+        "BIND(?o AS ?obj)} ");
+    //render literals by their value
+    query = query.concat("OPTIONAL { FILTER (isLiteral(?o)) " +
+        "BIND(?o AS ?obj)} ");
+    query = query.concat(" } ");
+    return trimWhiteSpaces(query);
+}
+
+//generates the SPARQL-Code for the entity values (URIs or GraphDB-IDs)
 function genEntityValues(idArray, retailMode) {
     let result = "";
     let openingChar = "";
@@ -67,24 +64,11 @@ function genEntityValues(idArray, retailMode) {
 }
 
 /**
- *
+ * generates the class URIs for the SPARQL-Query
  * @param {Array} targetClasses - the Classes (Array of absolute URIs) which the target entity must have
  * @param {Boolean} exactMatch - if true, then the target classes must match exactly (subclasses of them are not allowed)
  */
 async function genValues(targetClasses, exactMatch) {
-    let targetVocabularies = ["https://schema.org/version/5.0/"];
-    if (!exactMatch) {
-        for (let i = 0; i < targetClasses.length; i++) {
-            if (targetClasses[i].indexOf("schema.org") === -1) {
-                //not sdo -> add to array
-                let additionalVocab = targetClasses[i].substring(0, targetClasses[i].lastIndexOf("/") + 1);
-                if (!targetVocabularies.includes(additionalVocab)) {
-                    targetVocabularies.push(additionalVocab);
-                }
-            }
-        }
-        await setSdoAdapter(targetVocabularies);
-    }
     let queryPart = "";
     //VALUES
     for (let i = 0; i < targetClasses.length; i++) {
@@ -92,11 +76,11 @@ async function genValues(targetClasses, exactMatch) {
         if (!exactMatch) {
             target = [target];
             try {
-                let subclasses = mySdoAdapter.getClass(target[0]).getSubClasses(true, {
+                let subclasses = vocHand.getMySdoAdapter().getClass(target[0]).getSubClasses(true, {
                     "termType": "Class",
                     "isSuperseded": false
                 });
-                let usedVocabs = mySdoAdapter.getVocabularies();
+                let usedVocabs = vocHand.getMySdoAdapter().getVocabularies();
                 let vocabKeys = Object.keys(usedVocabs);
                 for (let k = 0; k < subclasses.length; k++) {
                     if (subclasses[k].indexOf(":") !== -1) {
@@ -134,8 +118,34 @@ async function genValues(targetClasses, exactMatch) {
     return queryPart;
 }
 
+//substitutes whitespaces from a string with a single whitespace
 function trimWhiteSpaces(str) {
     return str.replace(/\s+/g, ' ').trim();
+}
+
+//for now support only exactMatch = true
+//checks how many entities exist for a given target query
+async function genQuery_CheckExist(namedGraph, dsTargetObject, verificationSettings) {
+    let query = "select ?numTypes (COUNT(?subj) as ?numTypes) ";
+    if (namedGraph !== null) {
+        query = query.concat("from <" + namedGraph + "> ");
+    }
+    query = query.concat("where { ");
+    if (dsTargetObject.targetType === "Class") {
+        for (let i = 0; i < dsTargetObject.target.length; i++) {
+            query = query.concat("?subj a <" + dsTargetObject.target[i] + "> .");
+        }
+        if (verificationSettings.onlyRootEntities) {
+            query = query.concat("FILTER (!EXISTS { ?b ?a ?origin}) ");
+        }
+    } else {
+        query = query.concat("?subj <" + dsTargetObject.target + "> ?o . ");
+        if (verificationSettings.onlyRootEntities) {
+            query = query.concat("FILTER (!EXISTS { ?b ?a ?origin}) ");
+        }
+    }
+    query = query.concat("}");
+    return query;
 }
 
 //covers get list of !RetailMode: URIs (wihtout blank nodes) and RetailMode: GraphIDs (with blank nodes)
@@ -203,7 +213,10 @@ async function genQuery_EntityListWithData(namedGraph, dsTargetObject, verificat
 }
 
 module.exports = {
+    genValues,
+    genQuery_CheckExist,
     genQuery_EntityList,
     genQuery_EntityGraphBulk,
+    genQuery_EntityGraphBulk_withIds,
     genQuery_EntityListWithData
 };

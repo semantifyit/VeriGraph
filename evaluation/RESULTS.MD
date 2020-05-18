@@ -1,0 +1,1 @@
+Find the evaluation results (Meta-data and error-reports) for the here presented evaluation scripts of this tool at http://dataset.sti2.at/evaluation_results/VeriGraph/
