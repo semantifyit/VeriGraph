@@ -9,7 +9,7 @@ async function main() {
         pw: null, //credential for access (if repository is not public)
         timeout: 0, //timeout in minutes for the SPARQL queries
         endPointURL: "https://graphdb.sti2.at", //URL of the SPARQL endpoint
-        repositoryId: "tenmillion", //id/name of the target repository
+        repositoryId: "hundredthousand", //id/name of the target repository
         namedGraph: null //URI of target named graph within the repository (null if whole repository should be used)
         //namedGraph: "https://graph.semantify.it/ryJfFtrYZ/2019-11-16"
     };
