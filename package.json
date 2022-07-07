@@ -26,7 +26,7 @@
     "event-stream": "^4.0.1",
     "fs": "0.0.1-security",
     "jsonld": "^1.8.1",
-    "moment": "^2.24.0",
+    "moment": "^2.29.4",
     "request": "^2.88.0",
     "request-progress": "^3.0.0",
     "schema-org-adapter": "^2.0.0"
