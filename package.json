@@ -25,10 +25,10 @@
     "csv-parse": "^4.8.2",
     "event-stream": "^4.0.1",
     "fs": "0.0.1-security",
-    "jsonld": "^1.8.1",
+    "jsonld": "^8.1.0",
     "moment": "^2.24.0",
     "request": "^2.88.0",
     "request-progress": "^3.0.0",
-    "schema-org-adapter": "^2.0.0"
+    "schema-org-adapter": "^5.2.0"
   }
 }
